@@ -55,15 +55,26 @@ Promise.all([
 
 
 // ================= START CAMERA =================
-function startCamera(){
- navigator.mediaDevices.getUserMedia({ video:true })
- .then(stream=>{
+async function startCamera(){
+
+ try{
+
+   const stream = await navigator.mediaDevices.getUserMedia({
+     video:{
+       facingMode:"user"
+     },
+     audio:false
+   })
+
    video.srcObject = stream
- })
- .catch(err=>{
-   alert("Camera error: "+err)
- })
+   video.play()
+
+ }catch(err){
+   alert("Camera access denied or not supported: " + err)
+ }
+
 }
+
 
 
 // ================= FACE DETECTION =================
@@ -132,4 +143,5 @@ function sendToSheet(img){
 
 </body>
 </html>
+
 
