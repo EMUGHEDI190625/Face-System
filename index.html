@@ -1,32 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ECN Face Recognition System</title>
 
-<script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
 
 <style>
 body{
   text-align:center;
   font-family:Arial;
-  background:#111;
-  color:white;
+  background:#f4f4f4;
 }
-
 video{
-  border:3px solid lime;
+  border:3px solid black;
   border-radius:10px;
 }
-
+canvas{
+  position:absolute;
+}
+#container{
+  position:relative;
+  display:inline-block;
+}
 button{
-  padding:12px 25px;
-  font-size:18px;
+  padding:12px 20px;
   margin-top:15px;
-  border:none;
-  border-radius:8px;
-  background:lime;
-  font-weight:bold;
+  font-size:18px;
   cursor:pointer;
 }
 </style>
@@ -34,117 +34,89 @@ button{
 
 <body>
 
-<h1>ECN Face Recognition Capture</h1>
+<h2>ECN Face Capture</h2>
 
-<video id="video" width="720" height="560" autoplay muted playsinline></video>
+<div id="container">
+  <video id="video" width="350" height="260" autoplay muted></video>
+</div>
 
 <br>
-<button onclick="capture()">Capture Face</button>
+<button onclick="captureFace()">Capture Face</button>
 
-<canvas id="snapshot" width="720" height="560" style="display:none;"></canvas>
+<p id="status"></p>
 
 <script>
-const video = document.getElementById("video")
-console.log(navigator.mediaDevices)
 
+const video = document.getElementById("video");
 
-// ================= LOAD MODELS =================
-Promise.all([
- faceapi.nets.ssdMobilenetv1.loadFromUri('models'),
- faceapi.nets.faceLandmark68Net.loadFromUri('models'),
- faceapi.nets.faceRecognitionNet.loadFromUri('models')
-]).then(startCamera)
-
-
-// ================= START CAMERA =================
 async function startCamera(){
-
- try{
-
-   const stream = await navigator.mediaDevices.getUserMedia({
-     video:{
-       facingMode:"user"
-     },
-     audio:false
-   })
-
-   video.srcObject = stream
-   video.play()
-
- }catch(err){
-   alert("Camera access denied or not supported: " + err)
- }
-
+ const stream = await navigator.mediaDevices.getUserMedia({ video:true });
+ video.srcObject = stream;
 }
+startCamera();
+
+
+async function loadModels(){
+ document.getElementById("status").innerText="Loading AI models...";
+ await faceapi.nets.ssdMobilenetv1.loadFromUri("models");
+ await faceapi.nets.faceLandmark68Net.loadFromUri("models");
+ await faceapi.nets.faceRecognitionNet.loadFromUri("models");
+ document.getElementById("status").innerText="Models Loaded ✅";
+}
+loadModels();
 
 
 
-// ================= FACE DETECTION =================
-video.addEventListener("play",()=>{
+video.addEventListener("play", ()=>{
+ const canvas = faceapi.createCanvasFromMedia(video);
+ document.getElementById("container").append(canvas);
 
- const canvas = faceapi.createCanvasFromMedia(video)
- document.body.append(canvas)
+ const size = {
+  width: video.width,
+  height: video.height
+ };
 
- const displaySize = {
-   width:video.width,
-   height:video.height
- }
-
- faceapi.matchDimensions(canvas,displaySize)
+ faceapi.matchDimensions(canvas,size);
 
  setInterval(async()=>{
+   const detections = await faceapi
+   .detectAllFaces(video)
+   .withFaceLandmarks()
+   .withFaceDescriptors();
 
-   const detections = await faceapi.detectAllFaces(
-       video,
-       new faceapi.SsdMobilenetv1Options()
-   ).withFaceLandmarks().withFaceDescriptors()
+   const resized = faceapi.resizeResults(detections,size);
 
-   const resized = faceapi.resizeResults(detections,displaySize)
+   canvas.getContext("2d").clearRect(0,0,canvas.width,canvas.height);
 
-   canvas.getContext("2d").clearRect(0,0,canvas.width,canvas.height)
+   faceapi.draw.drawDetections(canvas,resized);
+   faceapi.draw.drawFaceLandmarks(canvas,resized);
 
-   faceapi.draw.drawDetections(canvas,resized)
-   faceapi.draw.drawFaceLandmarks(canvas,resized)
-
- },100)
-})
-
-
-// ================= CAPTURE IMAGE =================
-function capture(){
-
- const canvas = document.getElementById("snapshot")
- const ctx = canvas.getContext("2d")
-
- ctx.drawImage(video,0,0,canvas.width,canvas.height)
-
- const imageURL = canvas.toDataURL("image/png")
-
- console.log("Captured Image Link:")
- console.log(imageURL)
-
- alert("Face Captured Successfully!")
-
- // OPTIONAL — send to Google Sheet
- // sendToSheet(imageURL)
-}
+ },100);
+});
 
 
 
-// ================= SEND TO GOOGLE SHEET =================
-// Replace URL with your Google Script Web App URL
-function sendToSheet(img){
+async function captureFace(){
 
- fetch("YOUR_GOOGLE_SCRIPT_URL",{
-   method:"POST",
-   body:JSON.stringify({image:img})
- })
+ const detection = await faceapi
+ .detectSingleFace(video)
+ .withFaceLandmarks()
+ .withFaceDescriptor();
+
+ if(!detection){
+   alert("No face detected!");
+   return;
+ }
+
+ const descriptor = detection.descriptor;
+
+ console.log("Face Descriptor:",descriptor);
+
+ document.getElementById("status").innerText=
+ "Face captured successfully ✅";
 
 }
 </script>
 
 </body>
 </html>
-
-
-
